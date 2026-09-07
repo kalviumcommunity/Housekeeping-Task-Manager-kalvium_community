@@ -14,7 +14,7 @@ dependencies:
   firebase_core: ^3.6.0
   firebase_auth: ^5.3.1
   cloud_firestore: ^5.4.4
-  firebase_storage: ^12.3.4
+  http: ^1.2.2
 
   # State management (kept intentionally simple per PRD scope)
   provider: ^6.1.2

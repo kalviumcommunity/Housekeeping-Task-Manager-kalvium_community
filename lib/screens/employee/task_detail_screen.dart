@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -80,7 +80,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   Future<void> _showCompleteDialog() async {
     final noteController = TextEditingController();
-    File? pickedImage;
+    XFile? pickedImage;
+    Uint8List? pickedImageBytes;
 
     await showModalBottomSheet(
       context: context,
@@ -113,10 +114,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (pickedImage != null)
+                  if (pickedImageBytes != null)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: Image.file(pickedImage!, height: 140, fit: BoxFit.cover),
+                      child: Image.memory(pickedImageBytes!, height: 140, fit: BoxFit.cover),
                     ),
                   Container(
                     padding: const EdgeInsets.all(10),
@@ -143,7 +144,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       final image = await _picker.pickImage(
                           source: ImageSource.camera, imageQuality: 80, maxWidth: 1600);
                       if (image != null) {
-                        setSheetState(() => pickedImage = File(image.path));
+                        final bytes = await image.readAsBytes();
+                        setSheetState(() {
+                          pickedImage = image;
+                          pickedImageBytes = bytes;
+                        });
                       }
                     },
                     icon: const Icon(Icons.camera_alt_outlined),
@@ -171,7 +176,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
-  Future<void> _completeTask({required String note, File? image}) async {
+  Future<void> _completeTask({required String note, XFile? image}) async {
     final uid = context.read<AppState>().currentUser?.uid;
     if (uid == null) return;
 

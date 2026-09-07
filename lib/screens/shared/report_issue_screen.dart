@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -48,7 +48,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   TaskPriority _priority = TaskPriority.medium;
   String? _selectedWardId;
   List<WardModel> _wards = [];
-  File? _pickedImage;
+  XFile? _pickedImage;
+  Uint8List? _pickedImageBytes;
   bool _loadingWards = true;
   bool _isSubmitting = false;
   double? _uploadProgress;
@@ -93,7 +94,11 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
         maxWidth: 1600,
       );
       if (image != null) {
-        setState(() => _pickedImage = File(image.path));
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _pickedImage = image;
+          _pickedImageBytes = bytes;
+        });
       }
       // If the user cancels, `image` is null — that's a normal, silent no-op.
     } catch (_) {
@@ -113,7 +118,11 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
         maxWidth: 1600,
       );
       if (image != null) {
-        setState(() => _pickedImage = File(image.path));
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _pickedImage = image;
+          _pickedImageBytes = bytes;
+        });
       }
     } catch (_) {
       if (mounted) {
@@ -276,10 +285,10 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (_pickedImage != null)
+                    if (_pickedImageBytes != null)
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: Image.file(_pickedImage!, height: 160, fit: BoxFit.cover),
+                        child: Image.memory(_pickedImageBytes!, height: 160, fit: BoxFit.cover),
                       ),
                     if (_uploadProgress != null) ...[
                       const SizedBox(height: 8),

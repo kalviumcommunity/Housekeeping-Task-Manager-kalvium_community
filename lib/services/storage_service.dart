@@ -1,88 +1,105 @@
-import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
+﻿import 'dart:convert';
+import 'dart:typed_data';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
-import '../core/constants/firestore_paths.dart';
+import '../core/constants/cloudinary_config.dart';
 import '../core/errors/app_exception.dart';
 
-/// Handles image uploads to Firebase Storage (PRD §20).
-/// Images are never stored as binary in Firestore — only the resulting
-/// download URL is persisted there.
+/// Handles image uploads to Cloudinary unsigned preset.
+///
+/// Images are stored securely on Cloudinary and only the resulting
+/// public HTTPS URL is persisted in Firestore.
+/// Cross-platform: works seamlessly on Web, Android, and iOS using [XFile].
 class StorageService {
-  final FirebaseStorage _storage;
   final _uuid = const Uuid();
 
-  StorageService({FirebaseStorage? storage})
-      : _storage = storage ?? FirebaseStorage.instance;
-
-  /// Uploads [file] for a task and returns the public download URL.
-  /// Throws [AppException] on failure; caller is responsible for
-  /// preserving form state so the user can retry (PRD §20).
+  /// Uploads [file] (an [XFile] from ImagePicker) for a task and returns the public download URL.
   Future<String> uploadTaskImage({
     required String taskId,
-    required File file,
+    required XFile file,
     void Function(double progress)? onProgress,
-  }) {
-    final fileName = '${_uuid.v4()}${_extensionOf(file.path)}';
-    final path = StoragePaths.taskImage(taskId, fileName);
-    return _upload(path: path, file: file, onProgress: onProgress);
+  }) async {
+    final bytes = await file.readAsBytes();
+    return _uploadBytes(
+      bytes: bytes,
+      fileName: '${_uuid.v4()}_${file.name}',
+      folder: 'wardclean/tasks/$taskId',
+      onProgress: onProgress,
+    );
   }
 
-  /// Uploads [file] for an issue and returns the public download URL.
+  /// Uploads [file] (an [XFile] from ImagePicker) for an issue and returns the public download URL.
   Future<String> uploadIssueImage({
     required String issueId,
-    required File file,
+    required XFile file,
     void Function(double progress)? onProgress,
-  }) {
-    final fileName = '${_uuid.v4()}${_extensionOf(file.path)}';
-    final path = StoragePaths.issueImage(issueId, fileName);
-    return _upload(path: path, file: file, onProgress: onProgress);
+  }) async {
+    final bytes = await file.readAsBytes();
+    return _uploadBytes(
+      bytes: bytes,
+      fileName: '${_uuid.v4()}_${file.name}',
+      folder: 'wardclean/issues/$issueId',
+      onProgress: onProgress,
+    );
   }
 
-  Future<String> _upload({
-    required String path,
-    required File file,
+  Future<String> _uploadBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required String folder,
     void Function(double progress)? onProgress,
   }) async {
     try {
-      final ref = _storage.ref().child(path);
-      final task = ref.putFile(
-        file,
-        SettableMetadata(contentType: _contentTypeOf(file.path)),
+      final uri = Uri.parse(CloudinaryConfig.uploadUrl);
+      final request = http.MultipartRequest('POST', uri);
+
+      request.fields['upload_preset'] = CloudinaryConfig.uploadPreset;
+      request.fields['folder'] = folder;
+
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: fileName,
+        ),
       );
 
       if (onProgress != null) {
-        task.snapshotEvents.listen((snapshot) {
-          if (snapshot.totalBytes > 0) {
-            onProgress(snapshot.bytesTransferred / snapshot.totalBytes);
-          }
-        });
+        onProgress(0.5);
       }
 
-      final snapshot = await task;
-      return await snapshot.ref.getDownloadURL();
-    } on FirebaseException {
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (onProgress != null) {
+        onProgress(1.0);
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final secureUrl = data['secure_url'] as String?;
+        if (secureUrl != null && secureUrl.isNotEmpty) {
+          return secureUrl;
+        }
+        throw AppException('Upload succeeded but no image URL was returned.');
+      } else {
+        final Map<String, dynamic>? errorJson = () {
+          try {
+            return jsonDecode(response.body) as Map<String, dynamic>?;
+          } catch (_) {
+            return null;
+          }
+        }();
+        final message = errorJson?['error']?['message'] ??
+            'Upload failed (HTTP ${response.statusCode})';
+        throw AppException('Cloudinary upload error: $message');
+      }
+    } on AppException {
+      rethrow;
+    } catch (e) {
       throw AppException(
-          'Unable to upload image. Please check your connection and try again.');
-    } catch (_) {
-      throw AppException('Unable to upload image. Please try again.');
-    }
-  }
-
-  String _extensionOf(String path) {
-    final dot = path.lastIndexOf('.');
-    if (dot == -1) return '.jpg';
-    return path.substring(dot);
-  }
-
-  String _contentTypeOf(String path) {
-    final ext = _extensionOf(path).toLowerCase();
-    switch (ext) {
-      case '.png':
-        return 'image/png';
-      case '.heic':
-        return 'image/heic';
-      default:
-        return 'image/jpeg';
+          'Unable to upload image. Please check your connection and Cloudinary configuration.');
     }
   }
 }

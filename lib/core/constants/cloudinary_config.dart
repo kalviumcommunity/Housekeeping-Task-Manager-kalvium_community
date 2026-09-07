@@ -12,7 +12,7 @@ class CloudinaryConfig {
 
   /// Your Cloudinary Cloud Name.
   /// Replace with your Cloudinary cloud name.
-  static const String cloudName = 'dhlq1ward';
+  static const String cloudName = 'dwiehf3ny';
 
   /// Your Cloudinary Unsigned Upload Preset.
   /// Replace with your unsigned upload preset name.

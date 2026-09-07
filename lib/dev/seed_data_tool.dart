@@ -63,7 +63,7 @@ class SeedDataTool {
       );
       final auth = FirebaseAuth.instanceFor(app: app);
       final db = FirebaseFirestore.instanceFor(app: app);
-      final password = _randomPassword();
+      const password = 'Password123!';
 
       try {
         final credential = await auth.createUserWithEmailAndPassword(

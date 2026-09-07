@@ -86,9 +86,9 @@ service cloud.firestore {
 
     // ---------- tasks/{taskId} ----------
     match /tasks/{taskId} {
-      // Any authenticated active user can read tasks (employees need to
+      // Any authenticated user can read tasks (employees need to
       // see their own; supervisors need to monitor all of them).
-      allow read: if isActiveUser();
+      allow read: if isSignedIn();
 
       // Only supervisors can create tasks, and only assigned to
       // themselves as `assignedBy`, starting in `pending` status with
@@ -136,7 +136,7 @@ service cloud.firestore {
 
     // ---------- issues/{issueId} ----------
     match /issues/{issueId} {
-      allow read: if isActiveUser();
+      allow read: if isSignedIn();
 
       // Any signed-in active user (employee or supervisor) can report
       // an issue, but only as themselves, starting 'open'.

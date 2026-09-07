@@ -16,25 +16,34 @@ class IssueRepository {
   Stream<List<IssueModel>> watchByStatus(IssueStatus status) {
     return _col
         .where('status', isEqualTo: status.value)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map(IssueModel.fromFirestore).toList());
+        .map((snap) {
+          final list = snap.docs.map(IssueModel.fromFirestore).toList();
+          list.sort((a, b) => (b.createdAt ?? DateTime(1970)).compareTo(a.createdAt ?? DateTime(1970)));
+          return list;
+        });
   }
 
   /// Issues reported by a specific user (employee's own "Issues" tab).
   Stream<List<IssueModel>> watchByReporter(String uid) {
     return _col
         .where('reportedBy', isEqualTo: uid)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map(IssueModel.fromFirestore).toList());
+        .map((snap) {
+          final list = snap.docs.map(IssueModel.fromFirestore).toList();
+          list.sort((a, b) => (b.createdAt ?? DateTime(1970)).compareTo(a.createdAt ?? DateTime(1970)));
+          return list;
+        });
   }
 
   Stream<List<IssueModel>> watchAll() {
     return _col
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map(IssueModel.fromFirestore).toList());
+        .map((snap) {
+          final list = snap.docs.map(IssueModel.fromFirestore).toList();
+          list.sort((a, b) => (b.createdAt ?? DateTime(1970)).compareTo(a.createdAt ?? DateTime(1970)));
+          return list;
+        });
   }
 
   /// PRD §29 — recent issue history used as the raw input to recurring
@@ -44,9 +53,12 @@ class IssueRepository {
     final cutoff = DateTime.now().subtract(Duration(days: days));
     return _col
         .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(cutoff))
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map(IssueModel.fromFirestore).toList());
+        .map((snap) {
+          final list = snap.docs.map(IssueModel.fromFirestore).toList();
+          list.sort((a, b) => (b.createdAt ?? DateTime(1970)).compareTo(a.createdAt ?? DateTime(1970)));
+          return list;
+        });
   }
 
   /// One-time fetch equivalent of [watchRecent], used by report screens
@@ -56,9 +68,10 @@ class IssueRepository {
       final cutoff = DateTime.now().subtract(Duration(days: days));
       final snap = await _col
           .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(cutoff))
-          .orderBy('createdAt', descending: true)
           .get();
-      return snap.docs.map(IssueModel.fromFirestore).toList();
+      final list = snap.docs.map(IssueModel.fromFirestore).toList();
+      list.sort((a, b) => (b.createdAt ?? DateTime(1970)).compareTo(a.createdAt ?? DateTime(1970)));
+      return list;
     } on FirebaseException catch (e) {
       throw mapFirestoreError(e);
     }
@@ -71,9 +84,10 @@ class IssueRepository {
       final snap = await _col
           .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
           .where('createdAt', isLessThan: Timestamp.fromDate(end))
-          .orderBy('createdAt', descending: true)
           .get();
-      return snap.docs.map(IssueModel.fromFirestore).toList();
+      final list = snap.docs.map(IssueModel.fromFirestore).toList();
+      list.sort((a, b) => (b.createdAt ?? DateTime(1970)).compareTo(a.createdAt ?? DateTime(1970)));
+      return list;
     } on FirebaseException catch (e) {
       throw mapFirestoreError(e);
     }

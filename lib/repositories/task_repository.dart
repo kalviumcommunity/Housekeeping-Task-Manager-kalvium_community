@@ -48,9 +48,12 @@ class TaskRepository {
   Stream<List<TaskModel>> watchMyTasks(String uid) {
     return _col
         .where('assignedTo', isEqualTo: uid)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map(TaskModel.fromFirestore).toList());
+        .map((snap) {
+          final list = snap.docs.map(TaskModel.fromFirestore).toList();
+          list.sort((a, b) => (b.createdAt ?? DateTime(1970)).compareTo(a.createdAt ?? DateTime(1970)));
+          return list;
+        });
   }
 
   /// PRD §34 — employee's completed task history.
@@ -58,9 +61,12 @@ class TaskRepository {
     return _col
         .where('assignedTo', isEqualTo: uid)
         .where('status', isEqualTo: TaskStatus.completed.value)
-        .orderBy('completedAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map(TaskModel.fromFirestore).toList());
+        .map((snap) {
+          final list = snap.docs.map(TaskModel.fromFirestore).toList();
+          list.sort((a, b) => (b.completedAt ?? DateTime(1970)).compareTo(a.completedAt ?? DateTime(1970)));
+          return list;
+        });
   }
 
   /// PRD §24, §25 — supervisor real-time monitoring with optional filters.
@@ -89,10 +95,12 @@ class TaskRepository {
           .where('createdAt', isLessThan: Timestamp.fromDate(end));
     }
 
-    query = query.orderBy('createdAt', descending: true);
-
     return query.snapshots().map(
-          (snap) => snap.docs.map(TaskModel.fromFirestore).toList(),
+          (snap) {
+            final list = snap.docs.map(TaskModel.fromFirestore).toList();
+            list.sort((a, b) => (b.createdAt ?? DateTime(1970)).compareTo(a.createdAt ?? DateTime(1970)));
+            return list;
+          },
         );
   }
 
@@ -104,9 +112,10 @@ class TaskRepository {
       final snap = await _col
           .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
           .where('createdAt', isLessThan: Timestamp.fromDate(end))
-          .orderBy('createdAt', descending: true)
           .get();
-      return snap.docs.map(TaskModel.fromFirestore).toList();
+      final list = snap.docs.map(TaskModel.fromFirestore).toList();
+      list.sort((a, b) => (b.createdAt ?? DateTime(1970)).compareTo(a.createdAt ?? DateTime(1970)));
+      return list;
     } on FirebaseException catch (e) {
       throw mapFirestoreError(e);
     }

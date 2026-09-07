@@ -103,15 +103,4 @@ class SeedDataTool {
         'run scripts/seed_admin.js instead (see README "Seed Data").');
     return log;
   }
-
-  String _randomPassword() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-    var seed = DateTime.now().microsecondsSinceEpoch;
-    final buffer = StringBuffer();
-    for (var i = 0; i < 12; i++) {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      buffer.write(chars[seed % chars.length]);
-    }
-    return buffer.toString();
-  }
 }

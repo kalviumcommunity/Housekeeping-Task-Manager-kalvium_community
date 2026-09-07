@@ -29,6 +29,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _userRepository = UserRepository();
   final _wardRepository = WardRepository();
 
+  UserRole _selectedRole = UserRole.employee;
   String? _selectedWardId;
   List<WardModel> _wards = [];
   bool _loadingWards = true;
@@ -101,7 +102,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         employeeId: _employeeIdController.text.trim(),
-        role: UserRole.employee,
+        role: _selectedRole,
         assignedWard: ward.wardId,
         active: true,
       ));
@@ -117,7 +118,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Employee Account')),
+      appBar: AppBar(title: const Text('Create Account')),
       body: _loadingWards
           ? const LoadingIndicator()
           : SingleChildScrollView(
@@ -138,6 +139,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: const InputDecoration(labelText: 'Employee ID'),
                       validator: (v) =>
                           Validators.required(v, field: 'Employee ID'),
+                    ),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<UserRole>(
+                      initialValue: _selectedRole,
+                      decoration: const InputDecoration(labelText: 'Role'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: UserRole.employee,
+                          child: Text('Employee'),
+                        ),
+                        DropdownMenuItem(
+                          value: UserRole.supervisor,
+                          child: Text('Supervisor'),
+                        ),
+                      ],
+                      onChanged: (v) =>
+                          setState(() => _selectedRole = v ?? UserRole.employee),
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(

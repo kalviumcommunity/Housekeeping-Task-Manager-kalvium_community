@@ -63,7 +63,7 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
         request.auth.uid == uid &&
         request.resource.data.uid == uid &&
-        request.resource.data.role == 'employee' &&
+        (request.resource.data.role == 'employee' || request.resource.data.role == 'supervisor') &&
         request.resource.data.active == true;
 
       allow update: if isSignedIn() &&

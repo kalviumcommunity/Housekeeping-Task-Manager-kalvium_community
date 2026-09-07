@@ -1,0 +1,38 @@
+name: wardclean
+description: "WardClean — Hospital Housekeeping Task Management & Compliance App"
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.4
+
+  # State management (kept intentionally simple per PRD scope)
+  provider: ^6.1.2
+
+  # Utilities
+  intl: ^0.19.0
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+  uuid: ^4.5.1
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  mockito: ^5.4.4
+  build_runner: ^2.4.13
+
+flutter:
+  uses-material-design: true

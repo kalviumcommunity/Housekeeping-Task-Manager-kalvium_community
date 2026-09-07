@@ -1,0 +1,49 @@
+rules_version = '2';
+
+// WardClean — Firebase Storage Security Rules
+//
+// Layout:
+//   task_images/{taskId}/{fileName}
+//   issue_images/{issueId}/{fileName}
+//
+// Design principles (PRD §45):
+//  - Authenticated users only.
+//  - Content-type restricted to images, size capped (5 MB) to match
+//    AppConstants.maxImageBytes in the client.
+//  - Any authenticated user may read images (supervisors need to view
+//    employee-submitted photos and vice versa).
+//  - Writes require a valid image under the size cap. The client always
+//    uploads under a fresh random UUID filename, so this does not allow
+//    overwriting another user's existing file in practice; combined with
+//    no update/delete, uploaded evidence is effectively immutable.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*') &&
+        request.resource.size < 5 * 1024 * 1024;
+    }
+
+    match /task_images/{taskId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidImage();
+      allow update, delete: if false;
+    }
+
+    match /issue_images/{issueId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidImage();
+      allow update, delete: if false;
+    }
+
+    // Everything else is denied by default.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

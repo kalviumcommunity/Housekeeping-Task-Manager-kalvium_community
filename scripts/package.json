@@ -1,0 +1,12 @@
+{
+  "name": "wardclean-seed-scripts",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Admin SDK seed script for WardClean. Not part of the Flutter app itself.",
+  "scripts": {
+    "seed": "node seed_admin.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}

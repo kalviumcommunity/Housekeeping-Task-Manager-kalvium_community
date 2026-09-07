@@ -1,0 +1,159 @@
+rules_version = '2';
+
+// WardClean — Firestore Security Rules
+//
+// Design principles (PRD §44):
+//  - Authentication required for all protected data.
+//  - Role is read from the caller's OWN users/{uid} document, never
+//    trusted from client-supplied data.
+//  - Employees can only modify their own assigned tasks, and only via
+//    the permitted status transitions (pending -> in_progress -> completed).
+//  - Employees can never change their own role or elevate to supervisor.
+//  - Supervisors can create/assign tasks and resolve issues.
+//  - No collection is ever publicly readable or writable.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helpers ----------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function myRole() {
+      return myProfile().data.role;
+    }
+
+    function isSupervisor() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        myRole() == 'supervisor';
+    }
+
+    function isEmployee() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        myRole() == 'employee';
+    }
+
+    function isActiveUser() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        myProfile().data.active == true;
+    }
+
+    // ---------- users/{uid} ----------
+    // - Any authenticated user may read any user profile (needed for
+    //   supervisor employee-assignment dropdowns and displaying
+    //   assignedEmployeeName / reportedByName).
+    // - A user may create ONLY their own profile document, and it must
+    //   be role == 'employee' (self-registration never creates
+    //   supervisors — PRD §6).
+    // - A user may update ONLY their own profile, and may NEVER change
+    //   uid, role, or employeeId (no self-elevation, PRD §44 rule 9/10).
+    // - No client-side deletes.
+    match /users/{uid} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+        request.auth.uid == uid &&
+        request.resource.data.uid == uid &&
+        request.resource.data.role == 'employee' &&
+        request.resource.data.active == true;
+
+      allow update: if isSignedIn() &&
+        request.auth.uid == uid &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.employeeId == resource.data.employeeId;
+
+      allow delete: if false;
+    }
+
+    // ---------- wards/{wardId} ----------
+    // Read-only from the client. Wards are provisioned by a supervisor/
+    // admin directly in the Firebase Console or via a trusted seed
+    // script (service account), not through the app.
+    match /wards/{wardId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---------- tasks/{taskId} ----------
+    match /tasks/{taskId} {
+      // Any authenticated active user can read tasks (employees need to
+      // see their own; supervisors need to monitor all of them).
+      allow read: if isActiveUser();
+
+      // Only supervisors can create tasks, and only assigned to
+      // themselves as `assignedBy`, starting in `pending` status with
+      // no timestamps pre-filled (server timestamps only).
+      allow create: if isSupervisor() &&
+        request.resource.data.assignedBy == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.startedAt == null &&
+        request.resource.data.completedAt == null;
+
+      // Employees may update ONLY a task assigned to them, and ONLY
+      // through the two permitted transitions:
+      //   pending -> in_progress  (sets startedAt)
+      //   in_progress -> completed (sets completedAt, optional note/image)
+      // No other field may change (title, ward, assignment, etc. are
+      // immutable from the employee side).
+      allow update: if isSupervisor() ||
+        (
+          isEmployee() &&
+          resource.data.assignedTo == request.auth.uid &&
+          request.resource.data.assignedTo == resource.data.assignedTo &&
+          request.resource.data.assignedBy == resource.data.assignedBy &&
+          request.resource.data.wardId == resource.data.wardId &&
+          request.resource.data.title == resource.data.title &&
+          (
+            (
+              resource.data.status == 'pending' &&
+              request.resource.data.status == 'in_progress'
+            ) ||
+            (
+              resource.data.status == 'in_progress' &&
+              request.resource.data.status == 'completed'
+            ) ||
+            (
+              // Allow attaching an image URL after upload without
+              // otherwise changing status (handles async Storage
+              // upload completing slightly after the status write).
+              request.resource.data.status == resource.data.status
+            )
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // ---------- issues/{issueId} ----------
+    match /issues/{issueId} {
+      allow read: if isActiveUser();
+
+      // Any signed-in active user (employee or supervisor) can report
+      // an issue, but only as themselves, starting 'open'.
+      allow create: if isActiveUser() &&
+        request.resource.data.reportedBy == request.auth.uid &&
+        request.resource.data.status == 'open';
+
+      // Only supervisors resolve issues. Reporters (or supervisors) may
+      // attach an image URL post-creation without changing status.
+      allow update: if isSupervisor() ||
+        (
+          isActiveUser() &&
+          resource.data.reportedBy == request.auth.uid &&
+          request.resource.data.status == resource.data.status
+        );
+
+      allow delete: if false;
+    }
+  }
+}

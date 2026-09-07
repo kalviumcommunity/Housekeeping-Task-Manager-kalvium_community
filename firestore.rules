@@ -80,7 +80,7 @@ service cloud.firestore {
     // admin directly in the Firebase Console or via a trusted seed
     // script (service account), not through the app.
     match /wards/{wardId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if false;
     }
 

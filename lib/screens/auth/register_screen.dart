@@ -35,6 +35,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isSubmitting = false;
   String? _errorMessage;
 
+  static final List<WardModel> _defaultWards = [
+    WardModel(wardId: 'ward_01', wardName: 'Ward 1 (General)', floor: '1st Floor', description: 'General Ward', active: true),
+    WardModel(wardId: 'ward_02', wardName: 'Ward 2 (Surgical)', floor: '2nd Floor', description: 'Surgical Ward', active: true),
+    WardModel(wardId: 'ward_03', wardName: 'Ward 3 (ICU)', floor: '3rd Floor', description: 'ICU', active: true),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -46,13 +52,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final wards = await _wardRepository.getActiveWards();
       if (mounted) {
         setState(() {
-          _wards = wards;
+          _wards = wards.isNotEmpty ? wards : _defaultWards;
           _loadingWards = false;
         });
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _loadingWards = false);
+        setState(() {
+          _wards = _defaultWards;
+          _loadingWards = false;
+        });
       }
     }
   }

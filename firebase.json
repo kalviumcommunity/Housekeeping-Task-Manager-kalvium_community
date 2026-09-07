@@ -1,9 +1,1 @@
-{
-  "firestore": {
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  },
-  "storage": {
-    "rules": "storage.rules"
-  }
-}
+{"firestore":{"rules":"firestore.rules","indexes":"firestore.indexes.json"},"storage":{"rules":"storage.rules"},"flutter":{"platforms":{"android":{"default":{"projectId":"ward-clean-54a66","appId":"1:67391170997:android:a66adc66743e4fb93751fc","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"ward-clean-54a66","configurations":{"android":"1:67391170997:android:a66adc66743e4fb93751fc","ios":"1:67391170997:ios:ad309261562c96793751fc","macos":"1:67391170997:ios:ad309261562c96793751fc","web":"1:67391170997:web:16b5f8752694a3be3751fc","windows":"1:67391170997:web:35fa4966d6c7f50b3751fc"}}}}}}

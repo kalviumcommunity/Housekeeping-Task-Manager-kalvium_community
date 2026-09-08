@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import '../../core/constants/enums.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/theme/app_theme.dart';
@@ -151,9 +152,16 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     try {
       final ward = _wards.firstWhere((w) => w.wardId == _selectedWardId);
 
-      // Create the issue document first so we have a stable issueId to
-      // scope the Storage path under (PRD §20).
-      final created = await _issueRepository.createIssue(IssueModel(
+      String? imageUrl;
+      if (_pickedImage != null) {
+        imageUrl = await _storageService.uploadIssueImage(
+          issueId: const Uuid().v4(),
+          file: _pickedImage!,
+          onProgress: (p) => setState(() => _uploadProgress = p),
+        );
+      }
+
+      await _issueRepository.createIssue(IssueModel(
         issueId: '',
         wardId: ward.wardId,
         wardName: ward.wardName,
@@ -165,30 +173,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
         relatedTaskId: widget.relatedTaskId,
         priority: _priority,
         status: IssueStatus.open,
+        imageUrl: imageUrl,
       ));
-
-      if (_pickedImage != null) {
-        try {
-          final url = await _storageService.uploadIssueImage(
-            issueId: created.issueId,
-            file: _pickedImage!,
-            onProgress: (p) => setState(() => _uploadProgress = p),
-          );
-          // Attach image URL after upload succeeds.
-          await _issueRepository.attachImage(issueId: created.issueId, imageUrl: url);
-        } catch (_) {
-          // Issue itself was already saved; surface the upload failure
-          // without discarding the successfully-created issue.
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                    'Issue saved, but the image failed to upload. You can retry from issue details.'),
-              ),
-            );
-          }
-        }
-      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -198,6 +184,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
       }
     } on AppException catch (e) {
       setState(() => _errorMessage = e.message);
+    } catch (e) {
+      setState(() => _errorMessage = 'Failed to report issue: $e');
     } finally {
       if (mounted) {
         setState(() {

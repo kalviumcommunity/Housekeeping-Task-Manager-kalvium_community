@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -99,7 +99,7 @@ class StorageService {
       rethrow;
     } catch (e) {
       throw AppException(
-          'Unable to upload image. Please check your connection and Cloudinary configuration.');
+          'Unable to upload image ($e). Please check your connection.');
     }
   }
 }

@@ -49,7 +49,6 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   TaskPriority _priority = TaskPriority.medium;
   String? _selectedWardId;
   List<WardModel> _wards = [];
-  XFile? _pickedImage;
   Uint8List? _pickedImageBytes;
   bool _loadingWards = true;
   bool _isSubmitting = false;
@@ -97,15 +96,14 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
       if (image != null) {
         final bytes = await image.readAsBytes();
         setState(() {
-          _pickedImage = image;
           _pickedImageBytes = bytes;
+          _errorMessage = null;
         });
       }
-      // If the user cancels, `image` is null — that's a normal, silent no-op.
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to open camera.')),
+          SnackBar(content: Text('Unable to open camera: $e')),
         );
       }
     }
@@ -121,14 +119,14 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
       if (image != null) {
         final bytes = await image.readAsBytes();
         setState(() {
-          _pickedImage = image;
           _pickedImageBytes = bytes;
+          _errorMessage = null;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to open gallery.')),
+          SnackBar(content: Text('Unable to open gallery: $e')),
         );
       }
     }
@@ -153,10 +151,10 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
       final ward = _wards.firstWhere((w) => w.wardId == _selectedWardId);
 
       String? imageUrl;
-      if (_pickedImage != null) {
-        imageUrl = await _storageService.uploadIssueImage(
+      if (_pickedImageBytes != null) {
+        imageUrl = await _storageService.uploadIssueImageBytes(
           issueId: const Uuid().v4(),
-          file: _pickedImage!,
+          bytes: _pickedImageBytes!,
           onProgress: (p) => setState(() => _uploadProgress = p),
         );
       }
@@ -273,16 +271,62 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (_pickedImageBytes != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.memory(_pickedImageBytes!, height: 160, fit: BoxFit.cover),
+                    if (_pickedImageBytes != null) ...[
+                      Stack(
+                        alignment: Alignment.topRight,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.memory(
+                              _pickedImageBytes!,
+                              height: 180,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: CircleAvatar(
+                              backgroundColor: Colors.black54,
+                              radius: 16,
+                              child: IconButton(
+                                padding: EdgeInsets.zero,
+                                icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                                onPressed: () => setState(() {
+                                  _pickedImageBytes = null;
+                                }),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    if (_uploadProgress != null) ...[
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(value: _uploadProgress),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Photo attached (${(_pickedImageBytes!.lengthInBytes / 1024).toStringAsFixed(0)} KB)',
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
                     ],
-                    const SizedBox(height: 8),
+                    if (_uploadProgress != null) ...[
+                      LinearProgressIndicator(value: _uploadProgress),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Uploading image to Cloudinary... ${((_uploadProgress ?? 0) * 100).toInt()}%',
+                        style: const TextStyle(fontSize: 12, color: AppColors.primary),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     Row(
                       children: [
                         Expanded(
@@ -304,18 +348,50 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                     ),
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 12),
-                      Text(_errorMessage!,
-                          style: const TextStyle(color: AppColors.overdue)),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.overdueBg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.overdue),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.error_outline, color: AppColors.overdue, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: const TextStyle(color: AppColors.overdue, fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: _isSubmitting ? null : _submit,
                       child: _isSubmitting
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  _pickedImageBytes != null && _uploadProgress != null
+                                      ? 'Uploading to Cloudinary...'
+                                      : 'Submitting...',
+                                ),
+                              ],
                             )
                           : const Text('Submit Issue'),
                     ),

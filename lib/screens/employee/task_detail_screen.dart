@@ -80,7 +80,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   Future<void> _showCompleteDialog() async {
     final noteController = TextEditingController();
-    XFile? pickedImage;
     Uint8List? pickedImageBytes;
 
     await showModalBottomSheet(
@@ -139,20 +138,42 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final image = await _picker.pickImage(
-                          source: ImageSource.camera, imageQuality: 80, maxWidth: 1600);
-                      if (image != null) {
-                        final bytes = await image.readAsBytes();
-                        setSheetState(() {
-                          pickedImage = image;
-                          pickedImageBytes = bytes;
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.camera_alt_outlined),
-                    label: const Text('Add evidence photo (optional)'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final image = await _picker.pickImage(
+                                source: ImageSource.camera, imageQuality: 80, maxWidth: 1600);
+                            if (image != null) {
+                              final bytes = await image.readAsBytes();
+                              setSheetState(() {
+                                pickedImageBytes = bytes;
+                              });
+                            }
+                          },
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: const Text('Camera'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final image = await _picker.pickImage(
+                                source: ImageSource.gallery, imageQuality: 80, maxWidth: 1600);
+                            if (image != null) {
+                              final bytes = await image.readAsBytes();
+                              setSheetState(() {
+                                pickedImageBytes = bytes;
+                              });
+                            }
+                          },
+                          icon: const Icon(Icons.photo_library_outlined),
+                          label: const Text('Gallery'),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
@@ -162,7 +183,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                             Navigator.pop(ctx);
                             await _completeTask(
                               note: noteController.text,
-                              image: pickedImage,
+                              imageBytes: pickedImageBytes,
                             );
                           },
                     child: const Text('Confirm & Complete'),
@@ -176,24 +197,24 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
-  Future<void> _completeTask({required String note, XFile? image}) async {
+  Future<void> _completeTask({required String note, Uint8List? imageBytes}) async {
     final uid = context.read<AppState>().currentUser?.uid;
     if (uid == null) return;
 
     setState(() => _isProcessing = true);
     try {
       String? imageUrl;
-      if (image != null) {
+      if (imageBytes != null) {
         try {
-          imageUrl = await _storageService.uploadTaskImage(
+          imageUrl = await _storageService.uploadTaskImageBytes(
             taskId: _task.taskId,
-            file: image,
+            bytes: imageBytes,
           );
-        } catch (_) {
+        } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Photo failed to upload — completing task without it.')),
+              SnackBar(
+                  content: Text('Photo failed to upload ($e) — completing task without it.')),
             );
           }
         }

@@ -5,11 +5,12 @@
 library;
 
 enum UserRole {
-  employee('employee'),
-  supervisor('supervisor');
+  employee('employee', 'Employee'),
+  supervisor('supervisor', 'Supervisor');
 
   final String value;
-  const UserRole(this.value);
+  final String label;
+  const UserRole(this.value, this.label);
 
   static UserRole fromValue(String? value) {
     return UserRole.values.firstWhere(

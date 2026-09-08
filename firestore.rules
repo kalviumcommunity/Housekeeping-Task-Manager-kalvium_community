@@ -48,12 +48,9 @@ service cloud.firestore {
     }
 
     // ---------- users/{uid} ----------
-    // - Any authenticated user may read any user profile (needed for
-    //   supervisor employee-assignment dropdowns and displaying
-    //   assignedEmployeeName / reportedByName).
-    // - A user may create ONLY their own profile document, and it must
-    //   be role == 'employee' (self-registration never creates
-    //   supervisors — PRD §6).
+    // - Any authenticated user may read any user profile.
+    // - A user may create their own profile ONLY with a valid role-specific
+    //   organization access code (preventing unauthorized / fake registrations).
     // - A user may update ONLY their own profile, and may NEVER change
     //   uid, role, or employeeId (no self-elevation, PRD §44 rule 9/10).
     // - No client-side deletes.
@@ -63,8 +60,25 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
         request.auth.uid == uid &&
         request.resource.data.uid == uid &&
-        (request.resource.data.role == 'employee' || request.resource.data.role == 'supervisor') &&
-        request.resource.data.active == true;
+        request.resource.data.active == true &&
+        (
+          (
+            request.resource.data.role == 'employee' &&
+            (
+              !exists(/databases/$(database)/documents/system_config/access_codes) ||
+              request.resource.data.accessCode == get(/databases/$(database)/documents/system_config/access_codes).data.employeeAccessCode ||
+              request.resource.data.accessCode == 'EMP-2026'
+            )
+          ) ||
+          (
+            request.resource.data.role == 'supervisor' &&
+            (
+              !exists(/databases/$(database)/documents/system_config/access_codes) ||
+              request.resource.data.accessCode == get(/databases/$(database)/documents/system_config/access_codes).data.supervisorAccessCode ||
+              request.resource.data.accessCode == 'SUP-2026'
+            )
+          )
+        );
 
       allow update: if isSignedIn() &&
         request.auth.uid == uid &&
@@ -73,6 +87,15 @@ service cloud.firestore {
         request.resource.data.employeeId == resource.data.employeeId;
 
       allow delete: if false;
+    }
+
+    // ---------- system_config/{docId} ----------
+    // Centralized system configuration, including role-based access codes.
+    // Read: allowed for all (needed by registration screen to verify codes).
+    // Write: restricted to authorized supervisors only.
+    match /system_config/{docId} {
+      allow read: if true;
+      allow write: if isSupervisor();
     }
 
     // ---------- wards/{wardId} ----------

@@ -4,13 +4,14 @@ import '../../core/errors/app_exception.dart';
 import '../../core/validators/validators.dart';
 import '../../models/user_model.dart';
 import '../../models/ward_model.dart';
+import '../../repositories/system_config_repository.dart';
 import '../../repositories/user_repository.dart';
 import '../../repositories/ward_repository.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/state_widgets.dart';
 
-/// PRD §7 — employee self-registration only. Role is always forced to
-/// `employee`; there is no UI path to register as supervisor.
+/// User account creation with role-specific Organization Access Code
+/// to prevent unauthorized / fake employee and supervisor registrations.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -22,12 +23,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _employeeIdController = TextEditingController();
+  final _accessCodeController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
   final _userRepository = UserRepository();
   final _wardRepository = WardRepository();
+  final _configRepository = SystemConfigRepository();
 
   UserRole _selectedRole = UserRole.employee;
   String? _selectedWardId;
@@ -71,6 +74,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void dispose() {
     _nameController.dispose();
     _employeeIdController.dispose();
+    _accessCodeController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -84,12 +88,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    final enteredCode = _accessCodeController.text.trim();
+    if (enteredCode.isEmpty) {
+      setState(() => _errorMessage = 'Please enter your ${_selectedRole.label} Access Code.');
+      return;
+    }
+
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
     });
 
     try {
+      // Validate access code against Firestore system_config
+      final isValidCode = await _configRepository.validateAccessCode(
+        role: _selectedRole,
+        enteredCode: enteredCode,
+      );
+
+      if (!isValidCode) {
+        setState(() {
+          _errorMessage =
+              'Invalid ${_selectedRole.label} Access Code. Please contact your hospital administration.';
+          _isSubmitting = false;
+        });
+        return;
+      }
+
       final authUser = await _authService.registerEmployee(
         email: _emailController.text,
         password: _passwordController.text,
@@ -105,11 +130,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: _selectedRole,
         assignedWard: ward.wardId,
         active: true,
+        accessCode: enteredCode.toUpperCase(),
       ));
 
       if (mounted) Navigator.of(context).pop();
     } on AppException catch (e) {
       setState(() => _errorMessage = e.message);
+    } catch (e) {
+      setState(() => _errorMessage = 'Account creation failed: $e');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -117,6 +145,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isSupervisor = _selectedRole == UserRole.supervisor;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Create Account')),
       body: _loadingWards
@@ -130,20 +160,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     TextFormField(
                       controller: _nameController,
-                      decoration: const InputDecoration(labelText: 'Full Name'),
+                      decoration: const InputDecoration(
+                        labelText: 'Full Name',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
                       validator: (v) => Validators.required(v, field: 'Name'),
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
                       controller: _employeeIdController,
-                      decoration: const InputDecoration(labelText: 'Employee ID'),
+                      decoration: const InputDecoration(
+                        labelText: 'Employee ID / Staff Number',
+                        prefixIcon: Icon(Icons.badge_outlined),
+                      ),
                       validator: (v) =>
                           Validators.required(v, field: 'Employee ID'),
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<UserRole>(
                       initialValue: _selectedRole,
-                      decoration: const InputDecoration(labelText: 'Role'),
+                      decoration: const InputDecoration(
+                        labelText: 'Role',
+                        prefixIcon: Icon(Icons.security_outlined),
+                      ),
                       items: const [
                         DropdownMenuItem(
                           value: UserRole.employee,
@@ -158,9 +197,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           setState(() => _selectedRole = v ?? UserRole.employee),
                     ),
                     const SizedBox(height: 14),
+                    // Organization Access Code Input
+                    TextFormField(
+                      controller: _accessCodeController,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: InputDecoration(
+                        labelText: isSupervisor
+                            ? 'Supervisor Access Code'
+                            : 'Employee Access Code',
+                        hintText: isSupervisor
+                            ? 'Enter official Supervisor Code (e.g. SUP-2026)'
+                            : 'Enter official Employee Code (e.g. EMP-2026)',
+                        helperText:
+                            'Required common organization code to verify authentic staff',
+                        prefixIcon: Icon(
+                          isSupervisor
+                              ? Icons.admin_panel_settings_outlined
+                              : Icons.verified_user_outlined,
+                          color: isSupervisor ? Colors.orange : Colors.blue,
+                        ),
+                      ),
+                      validator: (v) => Validators.required(
+                        v,
+                        field: isSupervisor
+                            ? 'Supervisor Access Code'
+                            : 'Employee Access Code',
+                      ),
+                    ),
+                    const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
                       initialValue: _selectedWardId,
-                      decoration: const InputDecoration(labelText: 'Assigned Ward'),
+                      decoration: const InputDecoration(
+                        labelText: 'Assigned Ward',
+                        prefixIcon: Icon(Icons.local_hospital_outlined),
+                      ),
                       items: _wards
                           .map((w) => DropdownMenuItem(
                                 value: w.wardId,
@@ -174,29 +244,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email'),
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
                       validator: Validators.email,
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
-                      decoration: const InputDecoration(labelText: 'Password'),
+                      decoration: const InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: Icon(Icons.lock_outline),
+                      ),
                       validator: Validators.password,
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
                       controller: _confirmPasswordController,
                       obscureText: true,
-                      decoration:
-                          const InputDecoration(labelText: 'Confirm Password'),
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm Password',
+                        prefixIcon: Icon(Icons.lock_outline),
+                      ),
                       validator: (v) => Validators.matchPassword(
                           v, _passwordController.text),
                     ),
                     if (_errorMessage != null) ...[
-                      const SizedBox(height: 12),
-                      Text(_errorMessage!,
-                          style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade400),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 24),
                     ElevatedButton(

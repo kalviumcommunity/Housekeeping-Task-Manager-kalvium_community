@@ -11,6 +11,7 @@ class UserModel {
   final String assignedWard;
   final bool active;
   final DateTime? createdAt;
+  final String? accessCode;
 
   UserModel({
     required this.uid,
@@ -21,6 +22,7 @@ class UserModel {
     required this.assignedWard,
     required this.active,
     this.createdAt,
+    this.accessCode,
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -34,6 +36,7 @@ class UserModel {
       assignedWard: (data['assignedWard'] as String?) ?? '',
       active: (data['active'] as bool?) ?? true,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      accessCode: data['accessCode'] as String?,
     );
   }
 
@@ -46,6 +49,7 @@ class UserModel {
       'role': role.value,
       'assignedWard': assignedWard,
       'active': active,
+      if (accessCode != null) 'accessCode': accessCode,
       if (isCreate) 'createdAt': FieldValue.serverTimestamp(),
     };
   }
@@ -54,6 +58,7 @@ class UserModel {
     String? name,
     String? assignedWard,
     bool? active,
+    String? accessCode,
   }) {
     return UserModel(
       uid: uid,
@@ -64,6 +69,7 @@ class UserModel {
       assignedWard: assignedWard ?? this.assignedWard,
       active: active ?? this.active,
       createdAt: createdAt,
+      accessCode: accessCode ?? this.accessCode,
     );
   }
 }

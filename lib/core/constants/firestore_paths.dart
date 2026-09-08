@@ -7,6 +7,8 @@ class FirestorePaths {
   static const String wards = 'wards';
   static const String tasks = 'tasks';
   static const String issues = 'issues';
+  static const String systemConfig = 'system_config';
+  static const String accessCodesDoc = 'access_codes';
 }
 
 /// Firebase Storage path helpers (PRD §20).
@@ -32,4 +34,9 @@ class AppConstants {
 
   /// PRD §51 — max image size before we warn/compress (5 MB).
   static const int maxImageBytes = 5 * 1024 * 1024;
+
+  /// Organization Access Codes (unique IDs common to all employees/supervisors)
+  /// used for restricting account creation and preventing fake accounts.
+  static const String defaultEmployeeAccessCode = 'EMP-2026';
+  static const String defaultSupervisorAccessCode = 'SUP-2026';
 }
